@@ -10,3 +10,5 @@ This example is for communicating with the PN532 chip using I2C. Wiring should b
  - PN532 GND -> GND
 
 Based on readMifareClassicIrq.pde by Adafruit
+
+##Marie en Jerke
