@@ -11,4 +11,3 @@ This example is for communicating with the PN532 chip using I2C. Wiring should b
 
 Based on readMifareClassicIrq.pde by Adafruit
 
-##Marie en Jerke
