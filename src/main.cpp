@@ -17,6 +17,21 @@ Based on readMifareClassicIrq.pde by Adafruit
 #include <Wire.h>
 #include <SPI.h>
 #include <Adafruit_PN532.h>
+#include <WiFi.h>          // Zorg dat je de juiste bord-bibliotheek hebt (voor ESP32/ESP8266)
+#include <PubSubClient.h>  // Standaard Arduino MQTT bibliotheek
+
+// --- Netwerk & MQTT Configuratie ---
+const char* ssid = "IB3";
+const char* password = "ingenieursbeleving3";
+const char* mqtt_server = "192.168.0.190";
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+// Functieprototypes
+void setup_wifi();
+void callback(char* topic, byte* payload, unsigned int length);
+void reconnect();
 
 static void startListeningToNFC();
 static void handleCardDetected();
@@ -45,7 +60,18 @@ int irqPrev;
 Adafruit_PN532 nfc(PN532_IRQ, PN532_RESET);
 
 void setup(void) {
-  Serial.begin(115200); //Adapt the platformio.ini with correct monitor_speed
+    Serial.begin(115200);
+    delay(1000);
+
+    Serial.println("Start MQTT Software.");
+
+    // 1. Wifi en MQTT instellen
+    setup_wifi();
+    client.setServer(mqtt_server, 1883);
+    client.setCallback(callback);
+
+
+  // 2. NFC
 
   Serial.println("Begin NFC532 Scanning Software.");
 
@@ -65,10 +91,19 @@ void setup(void) {
   nfc.SAMConfig();
 
   startListeningToNFC();
+
 }
 
 void loop(void) {
-  if (readerDisabled) {
+    // --- 1. MQTT Verbinding bewaken ---
+    if (!client.connected()) {
+        reconnect();
+    }
+    client.loop(); // Verwerkt inkomende berichten en houdt de verbinding levend
+
+    // NFC
+    
+    if (readerDisabled) {
     if (millis() - timeLastCardRead > DELAY_BETWEEN_CARDS) {
       readerDisabled = false;
       startListeningToNFC();
@@ -85,6 +120,7 @@ void loop(void) {
     irqPrev = irqCurr;
   }
 }
+
 
 void startListeningToNFC() {
   // Reset our IRQ indicators
@@ -132,4 +168,55 @@ void handleCardDetected() {
 
     // The reader will be enabled again after DELAY_BETWEEN_CARDS ms will pass.
     readerDisabled = true;
+}
+
+
+
+// --- Functies voor MQTT ---
+void setup_wifi() {
+    delay(10);
+    Serial.print("Connecting to ");
+    Serial.println(ssid);
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(".");
+    }
+    Serial.println("\nWiFi connected");
+}
+
+// Callback voor ontvangen MQTT berichten
+void callback(char* topic, byte* payload, unsigned int length) {
+    Serial.print("Bericht ontvangen op topic [");
+    Serial.print(topic);
+    Serial.print("]: ");
+    for (unsigned int i = 0; i < length; i++) {
+        Serial.print((char)payload[i]);
+    }
+    Serial.println();
+}
+
+void reconnect() {
+    while (!client.connected()) {
+        Serial.print("Attempting MQTT connection...");
+
+        // Unieke client ID genereren (hier zat de typefout: rnadom -> random)
+        String clientId = "nfc";
+        clientId += String(random(0xffff), HEX);
+
+        if (client.connect(clientId.c_str())) {
+            Serial.println("connected");
+            
+            // Eventueel een bericht sturen bij opstarten
+            client.publish("wachtwoord", "Controller online"); 
+            
+            // Luisteren naar het topic "Tag"
+            client.subscribe("Tag");
+        } else {
+            Serial.print("failed, rc=");
+            Serial.print(client.state());
+            Serial.println(" try again in 5 seconds");
+            delay(5000);
+        }
+    }
 }
