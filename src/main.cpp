@@ -50,6 +50,7 @@ void setup(void) {
   Serial.println("Begin NFC532 Scanning Software.");
 
   nfc.begin();
+  pinMode(PN532_IRQ, INPUT_PULLUP);
 
   uint32_t versiondata = nfc.getFirmwareVersion();
   if (! versiondata) {
@@ -72,6 +73,7 @@ void loop(void) {
     if (millis() - timeLastCardRead > DELAY_BETWEEN_CARDS) {
       readerDisabled = false;
       startListeningToNFC();
+      delay(50);
     }
   } else {
     irqCurr = digitalRead(PN532_IRQ);
